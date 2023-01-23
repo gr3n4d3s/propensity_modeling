@@ -1,0 +1,115 @@
+---
+title: "Model & Selection"
+author: "Mark D"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+## Read in packages
+library(tidyverse)
+library(tidymodels)
+library(sparklyr)
+
+## Read in data files
+download.file(url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip", "bank_data.zip", mode = "wb")
+unzip("bank_data.zip", exdir = "data")
+file.remove("bank_data.zip")
+
+# normalize data
+list.files("data")
+bank_data <- read.csv("data/bank-full.csv", sep = ";") %>%
+    rename_all(~tolower(str_replace_all(., "\\W", ""))) %>%
+    mutate(across(where(is.character), ~tolower(str_squish(.))),
+           y = as.factor(if_else(str_detect(y, "y"), 1, 0)))
+
+# take a quick peek at the data/explore
+head(bank_data)
+bank_data %>%
+    summarise(across(everything(), ~sum(is.na(.))))
+bank_data %>%
+    {table(.$y)} %>%
+    as.data.frame() %>%
+    rename(outcome_y = Var1) %>%
+    mutate(percentage = round((Freq/sum(Freq))*100, 2))
+ 
+# prep for models
+# tidymodels
+# split data
+set.seed(1234)
+split_bank <- initial_split(bank_data)
+
+train_bank <- training(split_bank)
+test_bank <- testing(split_bank)
+
+# potentially cross validate
+cvf <- vfold_cv(train_bank, v = 5)
+
+# prepare model glm because why not
+glm_model <- logistic_reg() %>%
+    set_engine("glm") %>%
+    set_mode("classification")
+
+# recipe for model (using all predictors for outcome) ... no tuning 
+bank_recipe <- recipe(y ~ ., data = train_bank) #%>% update_role()
+
+# build workflow
+bank_wflow <- workflow() %>%
+    add_model(glm_model) %>%
+    add_recipe(bank_recipe)
+
+# fit model/train
+fit_bank <- bank_wflow %>%
+    fit_resamples(object = glm_model,
+                  preprocessor = bank_recipe,
+                  resamples = cvf,
+                  metrics = metric_set(kap, accuracy))
+# fit model to test data
+banking_model_fit <- bank_wflow %>%
+    last_fit(split = split_bank,
+             metrics = metric_set(kap, accuracy))
+# combine test with predicions
+bank_test_pred <- bind_cols(
+    test_bank,
+    banking_model_fit %>% 
+        collect_predictions() %>%
+        select(.pred_class)
+)
+#check accuracy
+bank_accuracy <- bank_test_pred %>%
+   {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
+    as.data.frame()
+
+### sparklyr
+
+sc <- spark_connect(master = "local")
+
+```
+
+
+
+
+
+
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
