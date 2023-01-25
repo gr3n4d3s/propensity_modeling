@@ -117,17 +117,50 @@ spark_disconnect(sc)
 
 
 
+### refine tidymodel
+glimpse(train_bank)
+
+refine_bank_recipe <- training(split_bank) %>%
+    recipe(y ~.) %>%
+    step_corr(all_date_predictors()) %>%  # remove fields of high correlation
+    step_center(where(is.numeric)) %>%    # normalize to have mean zero
+    step_scale(where(is.numeric)) %>%     # normalize to sd dev of 1
+    prep() # builds operation 
+
+refine_bank_recipe
+
+refine_bank_test_data <- refine_bank_recipe %>% 
+    bake(testing(split_bank))
+
+refine_bank_test_data
+
+refine_bank_train_data <- juice(refine_bank_recipe)
+
+bank_rf_model <- rand_forest(trees = 100, mode = "classification") %>%
+    set_engine("randomForest") %>%
+    fit(y ~ ., data = refine_bank_train_data)
+
+bank_rf_outcome <- refine_bank_test_data %>%
+    bind_cols( 
+        bank_rf_model %>% 
+            predict(refine_bank_test_data)
+        ) 
+
+metrics(bank_rf_outcome, truth = y, estimate = .pred_class)
+
+refined_bank_accuracy <- bank_rf_outcome %>%
+   {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
+    as.data.frame()
+
 ```
 
+## Project methodology  
+
+This projects aim was to take a simplistic approach at solving customers propensity to purchase using off the shelf R packages and ML API's with minimal tuning.  Ultimately predictor outcomes will need to be binary, i.e. did or did not purchase, and use the applicable ML models.  
+## Pipeline  
+First is data ingestion.  R scripts are used to access and down load zip files from client/banks open web source.  
 
 
-
-
-
-
-
-
-## R Markdown
 
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
