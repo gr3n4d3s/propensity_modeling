@@ -1,11 +1,3 @@
----
-title: "Model & Selection"
-author: "Mark D"
-date: "`r Sys.Date()`"
-output: pdf_document
----
-
-```{r setup, include=FALSE, eval= F, echo=F}
 ## Read in packages
 library(tidyverse)
 library(tidymodels)
@@ -38,12 +30,12 @@ bank_data <- bank_data %>%
     mutate(across(where(is.character), ~tolower(str_squish(.))),
            y = as.factor(if_else(str_detect(y, "y"), 1, 0)),
            age = as.factor(case_when(age < 30 ~ "<30",
-                           age >= 30 & age <= 50 ~ "30 - 50",
-                           age >= 51 & age <= 70 ~ "50 - 70",
-                           TRUE ~ "71+")),
+                                     age >= 30 & age <= 50 ~ "30 - 50",
+                                     age >= 51 & age <= 70 ~ "50 - 70",
+                                     TRUE ~ "71+")),
            balance = round(balance, -3),
            duration = round(duration/60, 0))
- str(bank_data)
+str(bank_data)
 # prep for models
 # tidymodels
 # split data
@@ -88,7 +80,7 @@ bank_test_pred <- bind_cols(
 )
 #check accuracy
 bank_accuracy <- bank_test_pred %>%
-   {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
+    {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
     as.data.frame()
 
 ### sparklyr
@@ -114,8 +106,6 @@ sprk_rf_prediction <- sprk_rf_fit %>%
     collect()
 
 spark_disconnect(sc)
-
-
 
 ### refine tidymodel
 glimpse(train_bank)
@@ -144,28 +134,12 @@ bank_rf_outcome <- refine_bank_test_data %>%
     bind_cols( 
         bank_rf_model %>% 
             predict(refine_bank_test_data)
-        ) 
+    ) 
 
 metrics(bank_rf_outcome, truth = y, estimate = .pred_class)
 
 refined_bank_accuracy <- bank_rf_outcome %>%
-   {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
+    {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
     as.data.frame()
-
-```
-
-
-## Project methodology  
-``` {r, pipeline, echo = F, message = F, warning = F}
-knitr::include_graphics("pics/pipeline diagram.png")
-```
-*Image taken from R Views, by Edgar Ruiz*  
-This projects aim was to take a simplistic approach at solving customers propensity to purchase using off the shelf R packages and ML API's with minimal tuning.  Ultimately predictor outcomes will need to be binary, i.e. did or did not purchase, and use the applicable ML models.
-## Pipeline
-1. Data ingestion.  R scripts are used to access and down load zip files from client/banks open web source.
-2. Pre-Process and Re-process. Effectively making the data suitable for modeling and analysis. This included normalizing field names, bucketing continuous valuables into discrete chunks, factorizing out outcome variables, and normalizing numeric predictors to mean zero with standard deviation of 1.  This is an iterative step and process that we may return to in order to reshape our approach.
-3. Model and Training. Once again model selection, training, and tuning is iterative and will be shaped based on the nature of the questions asked. Here we're asking for a binary, yes or no, 1 to 0 outcome, so we'll choose a method that addresses those points first.
-## Logistic Regression
-
-
+save(refined_bank_accuracy, file = "R Data/bank_table.Rdata")
 
