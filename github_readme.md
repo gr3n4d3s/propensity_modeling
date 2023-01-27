@@ -1,0 +1,127 @@
+## Project methodology
+
+This projects aim was to take a simplistic approach at solving customers
+propensity to purchase using off the shelf R packages and ML API’s with
+minimal tuning. Ultimately predictor outcomes will need to be binary,
+i.e. did or did not purchase, and use the applicable ML models.
+
+## Pipeline
+
+<img src="pics/pipeline diagram.png" width="3616" />
+
+*Image taken from R Views, by Edgar Ruiz*
+
+-   Data ingestion. R scripts are used to access and down load zip files
+    from client/banks open web source.
+
+### Data source
+
+``` r
+## Read in data files
+download.file(url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip", "bank_data.zip", mode = "wb")
+unzip("bank_data.zip", exdir = "data")
+file.remove("bank_data.zip")
+```
+
+-   Data ingestion. R scripts are used to access and down load zip files
+    from client/banks open web source.
+
+### Pre-Process
+
+``` r
+# take a quick peek at the data/explore
+head(bank_data)
+bank_data %>%
+    summarise(across(everything(), ~sum(is.na(.))))
+bank_data %>%
+    {table(.$y)} %>%
+    as.data.frame() %>%
+    rename(outcome_y = Var1) %>%
+    mutate(percentage = round((Freq/sum(Freq))*100, 2))
+
+# maybe a quick little clean and normalize
+# normalize column names, character fields, factor outcome 
+# bin ages, balances etc. (all arbitrary for now)
+bank_data <- bank_data %>%
+    rename_all(~tolower(str_replace_all(., "\\W", ""))) %>%
+    mutate(across(where(is.character), ~tolower(str_squish(.))),
+           y = as.factor(if_else(str_detect(y, "y"), 1, 0)),
+           age = as.factor(case_when(age < 30 ~ "<30",
+                           age >= 30 & age <= 50 ~ "30 - 50",
+                           age >= 51 & age <= 70 ~ "50 - 70",
+                           TRUE ~ "71+")),
+           balance = round(balance, -3),
+           duration = round(duration/60, 0))
+ str(bank_data)
+```
+
+-   Pre-Process and Re-process. Effectively making the data suitable for
+    modeling and analysis. This included normalizing field names,
+    bucketing continuous valuables into discrete chunks, factorizing out
+    outcome variables, and normalizing numeric predictors to mean zero
+    with standard deviation of 1. This is an iterative step and process
+    that we may return to in order to reshape our approach.
+
+### Modeling
+
+``` r
+# prep for models
+# tidymodels
+# split data
+set.seed(1234)
+split_bank <- initial_split(bank_data)
+
+train_bank <- training(split_bank)
+test_bank <- testing(split_bank)
+refine_bank_recipe <- training(split_bank) %>%
+    recipe(y ~.) %>%
+    step_corr(all_date_predictors()) %>%  # remove fields of high correlation
+    step_center(where(is.numeric)) %>%    # normalize to have mean zero
+    step_scale(where(is.numeric)) %>%     # normalize to sd dev of 1
+    prep()                                # builds operation 
+
+refine_bank_test_data <- refine_bank_recipe %>% 
+    bake(testing(split_bank))
+
+refine_bank_train_data <- juice(refine_bank_recipe)
+
+bank_rf_model <- rand_forest(trees = 100, mode = "classification") %>%
+    set_engine("randomForest") %>%
+    fit(y ~ ., data = refine_bank_train_data)
+```
+
+-   Model and Training. Once again model selection, training, and tuning
+    is iterative and will be shaped based on the nature of the questions
+    asked. Here we’re asking for a binary, yes or no, 1 to 0 outcome, so
+    we’ll choose a method that addresses those points first.
+
+## Random Forests
+
+``` r
+bank_rf_outcome <- refine_bank_test_data %>%
+    bind_cols( 
+        bank_rf_model %>% 
+            predict(refine_bank_test_data)
+        ) 
+
+metrics(bank_rf_outcome, truth = y, estimate = .pred_class)
+
+refined_bank_accuracy <- bank_rf_outcome %>%
+   {table("Predicted" = .$.pred_class, "Observed" = .$y)} %>%
+    as.data.frame()
+```
+
+-   Although both logistic regression and random forest were tested, for
+    the purposes of this walk-through we chose random forests and the
+    model that provided the greatest insight into the data
+
+### Resulting predictive accuracy
+
+    ##   Predicted Observed Freq
+    ## 1         0        0 9633
+    ## 2         1        0  373
+    ## 3         0        1  647
+    ## 4         1        1  650
+
+-   Wash, rinse, and repeat. A good start but a deeper dive into the
+    metrics would undoubtedly yield better results.
