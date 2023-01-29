@@ -153,3 +153,5 @@ refined_bank_accuracy <- bank_rf_outcome %>%
     as.data.frame()
 save(refined_bank_accuracy, file = "R Data/bank_table.Rdata")
 
+# Render slide presentation to pdf as per direction
+renderthis::to_pdf("Bank Slide Deck.rmd")

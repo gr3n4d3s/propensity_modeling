@@ -71,7 +71,6 @@ knitr::include_graphics("R Data/meaning table.png")
 --
 ### - Moreover, contact in general yields the greatest predictive power and should be at the front-line of additional data and business tracking.  
   
-  
 --
 - Thanks for viewing IXIS Data Science Challenge
 
@@ -89,4 +88,5 @@ class: inverse, middle, center
 # Are you still here? lol.
 
 ---
+
 

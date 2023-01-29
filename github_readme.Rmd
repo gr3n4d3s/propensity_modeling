@@ -2,7 +2,7 @@
 title: "Customer Propensity Modeling"
 author: "Mark D"
 date: '`r Sys.Date()`'
-output:
+output: 
   md_document:
     variant: markdown_github
 ---
