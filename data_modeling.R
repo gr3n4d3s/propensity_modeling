@@ -1,7 +1,10 @@
-## Read in packages
+## Read in REQUIRED packages
 library(tidyverse)
 library(tidymodels)
 library(sparklyr)
+library(xaringan)
+library(gt)
+options(scipen = 999)
 
 ## Read in data files
 download.file(url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip", "bank_data.zip", mode = "wb")
@@ -99,7 +102,14 @@ sprk_rf_fit <- sprk_df_split$train %>%
     ml_random_forest(y ~ ., type = "regression")
 
 sprk_rf_tfi <- ml_tree_feature_importance(sc = sc, model = sprk_rf_fit) %>%
-    collect()
+    collect()  %>%
+    mutate(importance = round(importance*100, 2)) %>%
+    slice(1:3) %>%
+    mutate(importance = paste(importance, "%")) 
+x <- sprk_rf_tfi %>%
+    gt() %>%
+    tab_header(title = "Predictive Variable Importance") %>%
+    gtsave("R Data/meaning table.png")
 
 sprk_rf_prediction <- sprk_rf_fit %>% 
     ml_predict(sprk_df_split$test) %>%
